@@ -1,0 +1,4 @@
+coverage
+pytest
+pytest-cov
+ddt==1.7.2
