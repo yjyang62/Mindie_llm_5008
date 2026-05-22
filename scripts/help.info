@@ -1,0 +1,2 @@
+  --install-path=<path>             Install to specific path
+  --install                         Install run mode
