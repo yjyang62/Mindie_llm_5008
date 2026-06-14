@@ -417,6 +417,10 @@ TEST_F(InferInstanceTest, ControlInferInstancePauseIgnoresFailedRankResults)
 
     RecoverCommandInfo info("CMD_PAUSE_ENGINE");
     EXPECT_EQ(instance->ControlInferInstance(info).StatusCode(), Error::Code::OK);
+    NPUExecutionResult result;
+    ASSERT_TRUE(info.results.PopFront(result));
+    EXPECT_EQ(result.commandResult, 0);
+    EXPECT_EQ(result.errorMsg, "");
 
     instance->llmManagers_.clear();
     instance->started_.store(false);
@@ -432,6 +436,10 @@ TEST_F(InferInstanceTest, ControlInferInstanceNonPauseRequiresAllRanksSuccess)
 
     RecoverCommandInfo info("CMD_REINIT_NPU");
     EXPECT_EQ(instance->ControlInferInstance(info).StatusCode(), Error::Code::ERROR);
+    NPUExecutionResult result;
+    ASSERT_TRUE(info.results.PopFront(result));
+    EXPECT_EQ(result.commandResult, 1);
+    EXPECT_EQ(result.errorMsg, "Stop device failed");
 
     instance->llmManagers_.clear();
     instance->started_.store(false);
