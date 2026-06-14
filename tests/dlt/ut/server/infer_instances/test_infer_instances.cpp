@@ -265,6 +265,27 @@ static inline Status Ok() { return Status(Error::Code::OK); }
 static inline Status InvalidArg() { return Status(Error::Code::INVALID_ARG); }
 static inline Status InternalErr() { return Status(Error::Code::ERROR); }
 
+static std::shared_ptr<LlmManagerV2> MakeTestLlmManager()
+{
+    return std::make_shared<LlmManagerV2>(
+        "",
+        []() { return std::vector<RequestSPtr>{}; },
+        [](ResponseSPtr) {},
+        []() { return std::vector<std::pair<RequestIdNew, OperationV2>>{}; },
+        [](const std::string &) {},
+        [](RequestIdNew, Status, StatusResponseTypeV2) {});
+}
+
+static bool MockExecuteRecoverCommandWithFailedResult(RecoverCommandInfo &info)
+{
+    NPUExecutionResult result;
+    result.npuDeviceId = 0;
+    result.commandResult = 1;
+    result.errorMsg = "Stop device failed";
+    info.results.PushBack(result);
+    return true;
+}
+
 TEST_F(InferInstanceTest, InitFromEndpointCall_BackendConfigEmpty)
 {
     GlobalMockObject::verify();
@@ -384,6 +405,36 @@ TEST_F(InferInstanceTest, ControlRequest)
         .then(returnValue(InternalErr()));
     EXPECT_EQ(instance->ControlRequest(reqId, OperationV2::STOP).StatusCode(), Error::Code::OK);
     EXPECT_EQ(instance->ControlRequest(reqId, OperationV2::RELEASE_KV).StatusCode(), Error::Code::ERROR);
+}
+
+TEST_F(InferInstanceTest, ControlInferInstancePauseIgnoresFailedRankResults)
+{
+    instance->started_.store(true);
+    instance->llmManagers_ = {MakeTestLlmManager()};
+    MOCKER_CPP(&LlmManagerV2::ExecuteRecoverCommand, bool (*)(RecoverCommandInfo &))
+        .stubs()
+        .will(invoke(MockExecuteRecoverCommandWithFailedResult));
+
+    RecoverCommandInfo info("CMD_PAUSE_ENGINE");
+    EXPECT_EQ(instance->ControlInferInstance(info).StatusCode(), Error::Code::OK);
+
+    instance->llmManagers_.clear();
+    instance->started_.store(false);
+}
+
+TEST_F(InferInstanceTest, ControlInferInstanceNonPauseRequiresAllRanksSuccess)
+{
+    instance->started_.store(true);
+    instance->llmManagers_ = {MakeTestLlmManager()};
+    MOCKER_CPP(&LlmManagerV2::ExecuteRecoverCommand, bool (*)(RecoverCommandInfo &))
+        .stubs()
+        .will(invoke(MockExecuteRecoverCommandWithFailedResult));
+
+    RecoverCommandInfo info("CMD_REINIT_NPU");
+    EXPECT_EQ(instance->ControlInferInstance(info).StatusCode(), Error::Code::ERROR);
+
+    instance->llmManagers_.clear();
+    instance->started_.store(false);
 }
 
 TEST_F(InferInstanceTest, GetProcessingRequest)

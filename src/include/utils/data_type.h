@@ -103,8 +103,8 @@ enum FaultRecoveryCmd : int32_t {
 
 struct NPUExecutionResult {
     int32_t npuDeviceId = -1;    // 设备 ID
-    int32_t commandResult = -1;  // 1: success, 0: failure, -1: not executed
-    std::string errorMsg;        // 仅当 result == 0 时有效
+    int32_t commandResult = -1;  // 0: success, 1: failure, -1: not executed
+    std::string errorMsg;        // 仅当 result != 0 时有效
 };
 
 struct RecoverCommandInfo {
