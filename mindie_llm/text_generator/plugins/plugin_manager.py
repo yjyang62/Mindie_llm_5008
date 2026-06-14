@@ -810,6 +810,8 @@ class PluginManager:
                     self.generator_backend.notify_force_stop_exception()
 
                 self.error_code_collected_in_async = convert_exception_to_error_code(str(e))
+                if self.error_code_collected_in_async is not None:
+                    self.generator_backend.is_fault_device = True
                 if self.is_inference_pause or self.error_code_collected_in_async is not None:
                     logger.info(f"Mocking response due to inference pause for trace_ids={trace_ids}.")
                     if self.error_code_collected_in_async and launch_done is not None:

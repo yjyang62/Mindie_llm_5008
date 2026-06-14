@@ -32,6 +32,7 @@ from ...text_generator.plugins.plugin_manager import MemPoolType
 
 MAX_WORLD_SIZE = 1048576
 MAX_KEY_LENGTH = 256
+FORCE_STOP_EXCEPTION_TIMEOUT = 10.0
 
 
 class GeneratorBackend:
@@ -319,7 +320,7 @@ class GeneratorBackend:
 
     def _wait_for_force_stop_exception(self):
         if not self.is_fault_device:
-            timeout = 60.0
+            timeout = FORCE_STOP_EXCEPTION_TIMEOUT
             exception_detected = self.force_stop_exception_occurred.wait(timeout=timeout)
             if exception_detected:
                 logger.info(
@@ -328,9 +329,10 @@ class GeneratorBackend:
                 return True
             else:
                 logger.warning(
-                    f"Timeout waiting for FORCE STOP exception for device {self.npu_device_id} after {timeout} seconds"
+                    f"Timeout waiting for FORCE STOP exception for device {self.npu_device_id} after {timeout} "
+                    "seconds; continue pause because stop_device returned success"
                 )
-                return False
+                return True
         else:
             return True
 

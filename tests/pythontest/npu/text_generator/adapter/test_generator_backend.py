@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import torch
 
-from mindie_llm.text_generator.adapter.generator_backend import GeneratorBackend
+from mindie_llm.text_generator.adapter.generator_backend import FORCE_STOP_EXCEPTION_TIMEOUT, GeneratorBackend
 from mindie_llm.text_generator.utils.model_input import ModelInput
 from mindie_llm.text_generator.utils.sampling_metadata import SamplingMetadata, SamplingData, SamplingParam
 GENERATOR_BACKEND_AVAILABLE = True
@@ -270,6 +270,18 @@ class TestGeneratorBackend(unittest.TestCase):
 
         self.assertEqual(result["command_result"], 1)
         self.assertIn("Timeout waiting for FORCE STOP exception", result["error_msg"])
+
+    @patch(MOCKED_GET_MODEL_WRAPPER)
+    def test_wait_for_force_stop_timeout_keeps_pause_success(self, mock_get_wrapper):
+        """No FORCE STOP exception is acceptable after stop_device already succeeded."""
+        mock_get_wrapper.return_value = create_mock_model_wrapper()
+        backend = GeneratorBackend(get_default_model_config())
+        backend.force_stop_exception_occurred.wait = MagicMock(return_value=False)
+
+        result = backend._wait_for_force_stop_exception()
+
+        self.assertTrue(result)
+        backend.force_stop_exception_occurred.wait.assert_called_once_with(timeout=FORCE_STOP_EXCEPTION_TIMEOUT)
 
     @patch(MOCKED_GET_MODEL_WRAPPER)
     @patch("mindie_llm.text_generator.adapter.generator_backend.time.sleep")
