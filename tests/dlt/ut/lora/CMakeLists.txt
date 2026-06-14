@@ -1,0 +1,1 @@
+build_test(lora ut "mindie_engine;" "${PROJECT_SOURCE_DIR}/src/include/lora")
