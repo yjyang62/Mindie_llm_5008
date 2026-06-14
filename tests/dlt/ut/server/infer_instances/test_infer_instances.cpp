@@ -286,6 +286,16 @@ static bool MockExecuteRecoverCommandWithFailedResult(RecoverCommandInfo &info)
     return true;
 }
 
+static bool MockExecuteRecoverCommandWithUceFailedResult(RecoverCommandInfo &info)
+{
+    NPUExecutionResult result;
+    result.npuDeviceId = 0;
+    result.commandResult = 1;
+    result.errorMsg = "HBM uce address unknown, should trigger reschedule";
+    info.results.PushBack(result);
+    return true;
+}
+
 TEST_F(InferInstanceTest, InitFromEndpointCall_BackendConfigEmpty)
 {
     GlobalMockObject::verify();
@@ -421,6 +431,25 @@ TEST_F(InferInstanceTest, ControlInferInstancePauseIgnoresFailedRankResults)
     ASSERT_TRUE(info.results.PopFront(result));
     EXPECT_EQ(result.commandResult, 0);
     EXPECT_EQ(result.errorMsg, "");
+
+    instance->llmManagers_.clear();
+    instance->started_.store(false);
+}
+
+TEST_F(InferInstanceTest, ControlInferInstancePauseKeepsNonStopDeviceFailures)
+{
+    instance->started_.store(true);
+    instance->llmManagers_ = {MakeTestLlmManager()};
+    MOCKER_CPP(&LlmManagerV2::ExecuteRecoverCommand, bool (*)(RecoverCommandInfo &))
+        .stubs()
+        .will(invoke(MockExecuteRecoverCommandWithUceFailedResult));
+
+    RecoverCommandInfo info("CMD_PAUSE_ENGINE");
+    EXPECT_EQ(instance->ControlInferInstance(info).StatusCode(), Error::Code::ERROR);
+    NPUExecutionResult result;
+    ASSERT_TRUE(info.results.PopFront(result));
+    EXPECT_EQ(result.commandResult, 1);
+    EXPECT_EQ(result.errorMsg, "HBM uce address unknown, should trigger reschedule");
 
     instance->llmManagers_.clear();
     instance->started_.store(false);

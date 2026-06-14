@@ -187,6 +187,11 @@ class ParallelInfoManager:
     _process_group_cache: dict[tuple, ProcessGroup] = {}
     _process_group_cache_lock = Lock()
 
+    @classmethod
+    def clear_process_group_cache(cls) -> None:
+        with cls._process_group_cache_lock:
+            cls._process_group_cache.clear()
+
     def __init__(self, local_rank: int, llm_config=None, server_config=None):
         self.hccl_buffer = DEFAULT_BUFFER_SIZE
         self.server_config = {} if server_config is None else server_config

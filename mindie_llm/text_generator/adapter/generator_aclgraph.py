@@ -27,6 +27,7 @@ from ...utils.env import ENV
 from ..utils.model_output import ModelOutput
 from ..utils.sampling_output import SamplingOutput
 from ..utils.sampling_metadata import SamplingMetadata, SamplingData, SamplingParam
+from ...runtime.utils.distributed import reset_distributed_comm_state_after_reinit
 
 
 class ExpertParallelDegree(int, Enum):
@@ -236,7 +237,10 @@ class GeneratorAclGraph(GeneratorBackend):
 
     def _execute_cmd_reinit_npu(self):
         torch_npu.npu.restart_device(self.npu_device_id)
-        torch_npu.distributed.reinit_process_group(rebuild_link=False)
+        torch_npu.distributed.reinit_process_group(rebuild_link=True)
+        reset_distributed_comm_state_after_reinit(getattr(self.model_wrapper, "model", None))
+        if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1:
+            torch.distributed.barrier()
 
     def _warm_up(self, model_inputs: ModelInput, **kwargs) -> None:
         # NOTE: To ensure compatibility with atb graph, the current warmup procedure is:

@@ -66,3 +66,39 @@ def init_distributed(rank: int, world_size: int, local_rank: int, llm_config=Non
     # initialize parallel info manager
     global _PARALLEL_INFO_MANAGER
     _PARALLEL_INFO_MANAGER = ParallelInfoManager(local_rank, llm_config, server_config)
+
+
+def reset_distributed_comm_state_after_reinit(model=None) -> None:
+    """Drop cached HCCL process groups and MoE comm names after device reinit."""
+    parallel_info_manager = get_parallel_info_manager()
+    ParallelInfoManager.clear_process_group_cache()
+
+    if parallel_info_manager is not None:
+        seen_parallel_infos = set()
+        for parallel_info in getattr(parallel_info_manager, "_parallel_type_map", {}).values():
+            parallel_info_id = id(parallel_info)
+            if parallel_info_id in seen_parallel_infos:
+                continue
+            seen_parallel_infos.add(parallel_info_id)
+            parallel_info._process_group = None
+            parallel_info._cpu_process_group = None
+
+    try:
+        from mindie_llm.runtime.layers.fused_moe.token_dispatcher import (
+            TokenDispatcherWithAll2AllV,
+            TokenDispatcherWithAllGather,
+            TokenDispatcherWithMC2,
+        )
+        from mindie_llm.runtime.utils.singleton import Singleton
+
+        for dispatcher_cls in (TokenDispatcherWithAllGather, TokenDispatcherWithMC2, TokenDispatcherWithAll2AllV):
+            Singleton._instances.pop(dispatcher_cls, None)
+    except ImportError as exc:
+        logger.warning(f"Skip resetting MoE dispatcher singletons after NPU reinit: {exc}")
+
+    if model is None or not hasattr(model, "modules"):
+        return
+
+    for module in model.modules():
+        if hasattr(module, "_moe_ep_group"):
+            module._moe_ep_group = None

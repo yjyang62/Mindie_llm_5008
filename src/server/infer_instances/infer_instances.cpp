@@ -202,9 +202,14 @@ Status InferInstance::ControlInferInstance(mindie_llm::RecoverCommandInfo &info)
         llmManager->ExecuteRecoverCommand(info);
     }
     if (info.command == "CMD_PAUSE_ENGINE" || info.command == "CMD_PAUSE_ENGINE_ROCE") {
+        bool pauseSuccess = true;
         info.results.ForEach(
-            [](mindie_llm::NPUExecutionResult &res) {
+            [&pauseSuccess](mindie_llm::NPUExecutionResult &res) {
                 if (res.commandResult != 0) {
+                    if (res.errorMsg != "Stop device failed") {
+                        pauseSuccess = false;
+                        return;
+                    }
                     ULOG_WARN(SUBMODLE_NAME_INFERINSTANCE,
                               GenerateInferInstanceErrCode(WARNING, SUBMODLE_FEATURE_INIT, INIT_ERROR),
                               "Pause command result from NPU device "
@@ -215,7 +220,8 @@ Status InferInstance::ControlInferInstance(mindie_llm::RecoverCommandInfo &info)
                 }
             },
             info.results.Size());
-        return Status(Error::Code::OK, "Success");
+        return pauseSuccess ? Status(Error::Code::OK, "Success")
+                            : Status(Error::Code::ERROR, "Some NPU execute command failed");
     }
     if (info.command == "CMD_START_ENGINE") {
         isPaused_.store(false);
